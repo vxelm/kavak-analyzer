@@ -25,14 +25,15 @@ def get_term_data(df, term):
     clean_term_cars = clean_term_cars.drop(columns=['ID_Auto'])
     return clean_term_cars
 
-def standardize_X(X, features):
+def standardize_X(X):
     X_mean = X.mean()
     X_std = X.std()    
     X['Precio_z'] = (X['Precio'] - X_mean['Precio']) / X_std['Precio']
     X['Km_z']     = (X['Km'] - X_mean['Km']) / X_std['Km']
     X['Year_z']   = (X['Year'] - X_mean['Year']) / X_std['Year']
+    X['Interes_%_z']   = (X['Year'] - X_mean['Year']) / X_std['Year'] # NO ENTRARA AL MODELO
     X_scaled = X[['Precio_z', 'Km_z', 'Year_z']].copy()
-    return X_scaled
+    return X_scaled, X
 
 @st.cache_data
 def load_and_train_model():
@@ -48,7 +49,7 @@ def load_and_train_model():
     # Feature Engineering (Z-Scores)
     features = ['Precio', 'Km', 'Year', 'Interes_%']
     X = clean_term_cars[features].copy()
-    X_scaled = standardize_X[X, features]   
+    X_scaled, X = standardize_X(X)
     
     # Entrenamiento del Modelo (K=3)    
     k_means = KMeans(n_clusters=3, random_state=97, n_init=10)
@@ -148,14 +149,16 @@ else:
         model_data,
         x='Interes_%', 
         y='Km', 
-        color='Version',
-        symbol='Segment', # Forma del punto
+        color='Sucursal',
+        #symbol='Tipo', # Forma del punto
         hover_data=['Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
         title=f'Riesgo Financiero vs Desgaste: {selected_model}',
         height=600
     )
     fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
     st.plotly_chart(fig_model, width='stretch')
+
+
 
 # SECCION 3: SIMULADOR
 st.markdown("---")
