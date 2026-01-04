@@ -79,15 +79,13 @@ all_brands = sorted(df_results['Brand'].unique())
 selected_brand = st.sidebar.selectbox("Selecciona una Marca", all_brands)
 
 models_of_brand = sorted(df_results[df_results['Brand'] == selected_brand]['Model'].unique())
+models_of_brand.insert(0, "Todos los modelos")
 selected_model = st.sidebar.selectbox("Selecciona un Modelo", models_of_brand)
 
 all_years = sorted(df_results[df_results['Model'] == selected_model]['Year'].unique())
 all_years = [int(year) for year in all_years]
 all_years.insert(0, "Todos los años")
 selected_year = st.sidebar.selectbox("Selecciona un Año", all_years)
-
-# TODO filtrado por plazo
-# all_terms = sorted(df_results[''])
 
 # SECCION 1: INSIGHTS
 st.header("1. Segmentacion del Mercado")
@@ -126,15 +124,11 @@ st.markdown("---")
 st.header(f"2. Analisis Profundo: {selected_model}")
 
 # Filtrado de datos
-if selected_year != "Todos los años":        
-    model_data = df_results[
-        (df_results['Model'] == selected_model) &
-        (df_results['Year'] == selected_year)
-        ]
-else:
-    model_data = df_results[
-        (df_results['Model'] == selected_model)
-    ]
+
+model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
+year_mask = (df_results['Year'] == selected_year) | (selected_year == 'Todos los años')
+
+model_data = df_results[model_mask & year_mask]
 
 if model_data.empty:
     st.warning("No hay suficientes datos para este modelo.")
