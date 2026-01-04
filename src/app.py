@@ -25,6 +25,15 @@ def get_term_data(df, term):
     clean_term_cars = clean_term_cars.drop(columns=['ID_Auto'])
     return clean_term_cars
 
+def standardize_X(X, features):
+    X_mean = X.mean()
+    X_std = X.std()    
+    X['Precio_z'] = (X['Precio'] - X_mean['Precio']) / X_std['Precio']
+    X['Km_z']     = (X['Km'] - X_mean['Km']) / X_std['Km']
+    X['Year_z']   = (X['Year'] - X_mean['Year']) / X_std['Year']
+    X_scaled = X[['Precio_z', 'Km_z', 'Year_z']].copy()
+    return X_scaled
+
 @st.cache_data
 def load_and_train_model():
     try:
@@ -39,16 +48,9 @@ def load_and_train_model():
     # Feature Engineering (Z-Scores)
     features = ['Precio', 'Km', 'Year', 'Interes_%']
     X = clean_term_cars[features].copy()
+    X_scaled = standardize_X[X, features]   
     
-    X_mean = X.mean()
-    X_std = X.std()
-    
-    X['Precio_z'] = (X['Precio'] - X_mean['Precio']) / X_std['Precio']
-    X['Km_z']     = (X['Km'] - X_mean['Km']) / X_std['Km']
-    X['Year_z']   = (X['Year'] - X_mean['Year']) / X_std['Year']
-    
-    # Entrenamiento del Modelo (K=3)
-    X_scaled = X[['Precio_z', 'Km_z', 'Year_z']].copy()
+    # Entrenamiento del Modelo (K=3)    
     k_means = KMeans(n_clusters=3, random_state=97, n_init=10)
     k_means.fit(X_scaled)
     
