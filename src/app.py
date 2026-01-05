@@ -22,7 +22,7 @@ def get_term_data(df, term):
     clean_term_cars = clean_term_cars.sort_values(by=['Year', 'Km', 'Precio'], na_position='last')
     clean_term_cars = clean_term_cars.dropna()
     clean_term_cars = clean_term_cars.drop_duplicates(subset=['ID_Auto'], keep='first')
-    clean_term_cars = clean_term_cars.drop(columns=['ID_Auto'])
+    #clean_term_cars = clean_term_cars.drop(columns=['ID_Auto'])
     return clean_term_cars
 
 def standardize_X(X):
@@ -124,11 +124,12 @@ st.markdown("---")
 st.header(f"2. Analisis Profundo: {selected_model}")
 
 # Filtrado de datos
-
 model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
 year_mask = (df_results['Year'] == selected_year) | (selected_year == 'Todos los años')
-
 model_data = df_results[model_mask & year_mask]
+
+def display_df_point_selected(points, df):
+    return
 
 if model_data.empty:
     st.warning("No hay suficientes datos para este modelo.")
@@ -139,20 +140,27 @@ else:
     m3.metric("Unidades Disponibles", len(model_data))
     m4.metric("Ciudades", model_data['Sucursal'].nunique())
 
+    segmentation_options = ['Version', 'Caja', 'Sucursal', 'Segment', 'Year']
+    filter_label = st.segmented_control("Filtrado por: ", segmentation_options, selection_mode='single')
+
     fig_model = px.scatter(
         model_data,
         x='Interes_%', 
         y='Km', 
-        color='Sucursal',
+        color=filter_label,
         #symbol='Tipo', # Forma del punto
-        hover_data=['Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
+        hover_data=['ID_Auto', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
         title=f'Riesgo Financiero vs Desgaste: {selected_model}',
         height=600
     )
     fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
-    st.plotly_chart(fig_model, width='stretch')
+    event = st.plotly_chart(fig_model, width='stretch', selection_mode='points', key='ID_Auto', on_select='rerun')
 
-
+    #Muestra en detalle de los autos seleccionados en la grafica
+    points = [point['customdata'][0] for point in event['selection']['points']]
+    if points:
+        df_selected_points = model_data[model_data['ID_Auto'].isin(points)]
+        st.dataframe(df_selected_points)
 
 # SECCION 3: SIMULADOR
 st.markdown("---")
