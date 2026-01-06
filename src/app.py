@@ -1,9 +1,6 @@
-#import gc
 import streamlit as st
 import pandas as pd
-import seaborn as sns
 from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
 import plotly.express as px
 
 st.set_page_config(page_title="Kavak Market Analyzer", layout="wide")
@@ -17,7 +14,7 @@ en el mercado de autos seminuevos en México. Detecta anomalías de precio y cla
 
 def get_terms():
     try:
-        df = pd.read_csv('data.csv', encoding='utf-8', usecols=['Plazo'], dtype='Int8')
+        df = pd.read_csv('data.csv', encoding='utf-8', usecols=['Plazo'], dtype='Int16')
         terms = df['Plazo'].unique()
         return terms
     except FileNotFoundError:
@@ -115,7 +112,6 @@ def load_and_train_model(term=12):
     
     return df_results, cluster_names
 
-
 terms = get_terms()
 
 # SIDEBAR
@@ -182,6 +178,7 @@ st.header(f"2. Analisis Profundo: {selected_model}")
 brand_mask = (df_results['Brand'] == selected_brand) | (selected_brand == 'Todas las marcas')
 model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
 year_mask = (df_results['Year'] == selected_year) | (selected_year == 'Todos los años')
+model_data_simulator = df_results[brand_mask & model_mask]
 model_data = df_results[brand_mask & model_mask & year_mask]
 
 if model_data.empty:
@@ -216,41 +213,42 @@ else:
         df_selected_points = model_data[model_data['ID_Auto'].isin(points)]
         st.dataframe(df_selected_points)
 
-
-
 # SECCION 3: SIMULADOR
 st.markdown("---")
 st.header("3. Evaluador de Ofertas")
-st.write("¿Viste un auto y quieres saber si el precio es justo?")
+if selected_model != "Todos los modelos":
+    st.write(f"¿Viste un {selected_brand} {selected_model} y quieres saber si el precio es justo?")
 
-sc1, sc2, sc3 = st.columns(3)
-input_km = sc1.number_input("Kilometraje", value=50000, step=1000)
-input_price = sc2.number_input("Precio ($)", value=250000, step=5000)
-input_year = sc3.number_input("Año", value=2020, step=1)
+    sc1, sc2, sc3 = st.columns(3)
+    input_km = sc1.number_input("Kilometraje", value=50000, step=1000)
+    input_price = sc2.number_input("Precio ($)", value=250000, step=5000)
+    input_year = sc3.number_input("Año", value=2020, step=1)
 
-# Calculamos referencia
-referencia = model_data[
-    (model_data['Km'] > input_km - 10000) & 
-    (model_data['Km'] < input_km + 10000) &
-    (model_data['Year'] == input_year)
-    ]
+    # Calculamos referencia
+    referencia = model_data_simulator[
+        (model_data_simulator['Km'] > input_km - 10000) & 
+        (model_data_simulator['Km'] < input_km + 10000) &
+        (model_data_simulator['Year'] == input_year)
+        ]
 
-if st.button("Evaluar Precio"):
-    if referencia.empty:
-        st.warning(f"No tenemos suficientes datos de {selected_model} del año {input_year} para comparar.")
-    else:
-        avg_market = referencia['Precio'].mean()
-        diff = input_price - avg_market
-        
-        st.write(f"Precio Justo de Mercado (aprox): **${avg_market:,.0f}**")
-        
-        if diff < -15000:
-            st.success(f"¡OFERTA! Esta ${abs(diff):,.0f} por debajo del mercado")
-        elif diff > 15000:
-            st.error(f"CARO. Esta ${diff:,.0f} por encima del mercado. Intenta negociar.")
+    if st.button("Evaluar Precio"):
+        if referencia.empty:
+            st.warning(f"No tenemos suficientes datos de {selected_model} del año {input_year} para comparar.")
         else:
-            st.info("PRECIO JUSTO. Esta dentro del rango normal del mercado.")
+            avg_market = referencia['Precio'].mean()
+            diff = input_price - avg_market
+            
+            st.write(f"Precio Justo de Mercado (aprox): **${avg_market:,.0f}**")
+            
+            if diff < -15000:
+                st.success(f"¡OFERTA! Esta ${abs(diff):,.0f} por debajo del mercado")
+            elif diff > 15000:
+                st.error(f"CARO. Esta ${diff:,.0f} por encima del mercado. Intenta negociar.")
+            else:
+                st.info("PRECIO JUSTO. Esta dentro del rango normal del mercado.")
 
-# FOOTER
-st.markdown("---")
-st.caption("Desarrollado con Python & Streamlit • Modelo de ML: K-Means Clustering")
+    # FOOTER
+    st.markdown("---")
+    st.caption("Desarrollado con Python & Streamlit • Modelo de ML: K-Means Clustering")
+else:
+    st.write(f"Selecciona un modelo para poder acceder al Evaluador de Ofertas.")
