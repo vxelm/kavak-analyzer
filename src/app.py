@@ -1,7 +1,9 @@
+import gc
 import streamlit as st
 import pandas as pd
 from sklearn.cluster import KMeans
 import plotly.express as px
+gc.collect()
 
 st.set_page_config(page_title="Kavak Market Analyzer", layout="wide")
 pd.options.display.float_format = '{:,.0f}'.format
@@ -12,6 +14,7 @@ Esta herramienta utiliza **Inteligencia Artificial (K-Means Clustering)** para i
 en el mercado de autos seminuevos en México. Detecta anomalías de precio y clasifica los vehículos por su ciclo de vida.
 """)
 
+@st.cache_data
 def get_terms():
     try:
         df = pd.read_csv('data.csv', encoding='utf-8', usecols=['Plazo'], dtype='Int16')
@@ -21,11 +24,16 @@ def get_terms():
         st.text("No se pudo encontrar el archivo 'data.csv'")
         st.stop()
 
-def get_term_data(df, term):
+def get_term_data(df, term, aliado_flag=False):
     cols = ['ID_Auto', 'Brand', 'Model', 'Precio', 'Km', 'Year', 'Interes_%',
          'Version', 'Caja', 'Tipo', 'Total_a_Pagar', 'Plazo', 'Sucursal']
 
-    clean_term_cars = df.loc[(df['Plazo'] == term), cols].copy()    
+    if aliado_flag:
+        filtering_conditions = (df['Plazo'] == term)
+    else:
+        filtering_conditions = (df['Sucursal'] != 'Aliado') & (df['Plazo'] == term)
+
+    clean_term_cars = df.loc[filtering_conditions, cols].copy()    
     clean_term_cars = clean_term_cars.sort_values(by=['Year', 'Km', 'Precio'], na_position='last')
     clean_term_cars = clean_term_cars.dropna()
     clean_term_cars = clean_term_cars.drop_duplicates(subset=['ID_Auto'], keep='first')
@@ -81,12 +89,12 @@ def load_data():
         st.stop()
 
 @st.cache_resource
-def load_and_train_model(term=12):
+def load_and_train_model(term=12, aliado_flag=False):
 
     df = load_data()
 
     # Limpieza
-    clean_term_cars = get_term_data(df, term)
+    clean_term_cars = get_term_data(df, term, aliado_flag=aliado_flag)
     
     # Feature Engineering (Z-Scores)
     features = ['Precio', 'Km', 'Year', 'Interes_%']
@@ -116,12 +124,17 @@ terms = get_terms()
 
 # SIDEBAR
 st.sidebar.header("🔍 Explorador de Modelos")
+kavak_aliado_opts = ['Kavak', 'Aliados']
+selected_data_opt = st.sidebar.checkbox("Considerar a los aliados de kavak", value=False)
 
 all_terms = sorted(terms)
 selected_term = st.sidebar.selectbox("Selecciona un Plazo", all_terms)
 
-# Cargamos y entranamos al modelo
-df_results, cluster_names = load_and_train_model(selected_term)
+if selected_data_opt:
+    # Cargamos y entranamos al modelo
+    df_results, cluster_names = load_and_train_model(selected_term, selected_data_opt)
+else:
+    df_results, cluster_names = load_and_train_model(selected_term, selected_data_opt)
 
 all_brands = sorted(df_results['Brand'].unique())
 all_brands.insert(0, "Todas las marcas")
@@ -174,6 +187,21 @@ with col2:
 st.markdown("---")
 st.header(f"2. Analisis Profundo: {selected_model}")
 
+def axis_abstraction(selected_model, model_data, filter_label, x_axis='Interes_%', y_axis='Km'):
+    fig_model = px.scatter(
+        model_data,
+        x=x_axis, 
+        y=y_axis, 
+        color=filter_label,
+        #symbol='Tipo', # Forma del punto
+        hover_data=['ID_Auto', 'Model', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
+        title=f'{x_axis} vs {y_axis}: {selected_model}',
+        height=600
+    )
+    fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
+    event = st.plotly_chart(fig_model, width='stretch', selection_mode='points', key='ID_Auto', on_select='rerun')
+    return event
+
 # Filtrado de datos
 brand_mask = (df_results['Brand'] == selected_brand) | (selected_brand == 'Todas las marcas')
 model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
@@ -190,27 +218,32 @@ else:
     m3.metric("Unidades Disponibles", len(model_data))
     m4.metric("Ciudades", model_data['Sucursal'].nunique())
 
-    segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
-    if selected_model != 'Todos los modelos':
-        segmentation_options.extend(['Version', 'Model'])
-
-    filter_label = st.segmented_control("Filtrado por: ", segmentation_options, selection_mode='single')
-
+    col3, col4, col5 = st.columns(3, gap='small', vertical_alignment='top', width='stretch')
     
-
-    fig_model = px.scatter(
-        model_data,
-        x='Interes_%', 
-        y='Km', 
-        color=filter_label,
-        #symbol='Tipo', # Forma del punto
-        hover_data=['ID_Auto', 'Model', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
-        title=f'Riesgo Financiero vs Desgaste: {selected_model}',
-        height=600
-    )
-    fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
-    event = st.plotly_chart(fig_model, width='stretch', selection_mode='points', key='ID_Auto', on_select='rerun')
+    with col3:
+        x_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
+        y_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
+        x_axis = st.segmented_control("Eje X: ", x_axis_labels, selection_mode='single')
+        if x_axis:
+            y_axis_labels.remove(x_axis)
     
+    with col4:
+        y_axis = st.segmented_control("Eje y: ", y_axis_labels, selection_mode='single')
+    
+    with col5:
+        segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
+        if selected_brand != 'Todas las marcas':
+            segmentation_options.extend(['Model'])
+            if selected_model != 'Todos los modelos':
+                segmentation_options.extend(['Version'])
+
+        filter_label = st.segmented_control("Filtrado por: ", segmentation_options, default='Segment', selection_mode='single')
+
+
+    if x_axis and y_axis:
+        event = axis_abstraction(selected_model, model_data, filter_label, x_axis, y_axis)
+    else:
+        event = axis_abstraction(selected_model, model_data, filter_label)
 
     #Muestra en detalle los autos seleccionados en la grafica
     points = [point['customdata'][0] for point in event['selection']['points']]
@@ -221,7 +254,7 @@ else:
 # SECCION 3: SIMULADOR
 st.markdown("---")
 st.header("3. Evaluador de Ofertas")
-if selected_model != "Todos los modelos":
+if selected_model != "Todos los modelos" and selected_data_opt == False:
     st.write(f"¿Viste un {selected_brand} {selected_model} y quieres saber si el precio es justo?")
 
     sc1, sc2, sc3 = st.columns(3)
@@ -256,4 +289,4 @@ if selected_model != "Todos los modelos":
     st.markdown("---")
     st.caption("Desarrollado con Python & Streamlit • Modelo de ML: K-Means Clustering")
 else:
-    st.write(f"Selecciona un modelo para poder acceder al Evaluador de Ofertas.")
+    st.write(f"Selecciona un modelo para poder acceder al Evaluador de Ofertas. Y desactiva la opcion 'Considerar a aliados de kavak'.")
