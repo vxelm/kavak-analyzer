@@ -120,7 +120,7 @@ st.sidebar.header("🔍 Explorador de Modelos")
 all_terms = sorted(terms)
 selected_term = st.sidebar.selectbox("Selecciona un Plazo", all_terms)
 
-# Llamamos a la funcion
+# Cargamos y entranamos al modelo
 df_results, cluster_names = load_and_train_model(selected_term)
 
 all_brands = sorted(df_results['Brand'].unique())
@@ -190,8 +190,13 @@ else:
     m3.metric("Unidades Disponibles", len(model_data))
     m4.metric("Ciudades", model_data['Sucursal'].nunique())
 
-    segmentation_options = ['Version', 'Caja', 'Sucursal', 'Segment', 'Year', 'Model']
+    segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
+    if selected_model != 'Todos los modelos':
+        segmentation_options.extend(['Version', 'Model'])
+
     filter_label = st.segmented_control("Filtrado por: ", segmentation_options, selection_mode='single')
+
+    
 
     fig_model = px.scatter(
         model_data,
