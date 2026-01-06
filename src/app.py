@@ -1,3 +1,4 @@
+#import gc
 import streamlit as st
 import pandas as pd
 import seaborn as sns
@@ -14,15 +15,23 @@ Esta herramienta utiliza **Inteligencia Artificial (K-Means Clustering)** para i
 en el mercado de autos seminuevos en México. Detecta anomalías de precio y clasifica los vehículos por su ciclo de vida.
 """)
 
+def get_terms():
+    try:
+        df = pd.read_csv('data.csv', encoding='utf-8', usecols=['Plazo'], dtype='Int8')
+        terms = df['Plazo'].unique()
+        return terms
+    except FileNotFoundError:
+        st.text("No se pudo encontrar el archivo 'data.csv'")
+        st.stop()
+
 def get_term_data(df, term):
-    clean_term_cars = df.loc[(df['Plazo'] == term),
-        ['ID_Auto', 'Brand', 'Model', 'Precio', 'Km', 'Year', 'Interes_%',
-         'Version', 'Caja', 'Tipo', 'Total_a_Pagar', 'Plazo', 'Sucursal']].copy()
-    
+    cols = ['ID_Auto', 'Brand', 'Model', 'Precio', 'Km', 'Year', 'Interes_%',
+         'Version', 'Caja', 'Tipo', 'Total_a_Pagar', 'Plazo', 'Sucursal']
+
+    clean_term_cars = df.loc[(df['Plazo'] == term), cols].copy()    
     clean_term_cars = clean_term_cars.sort_values(by=['Year', 'Km', 'Precio'], na_position='last')
     clean_term_cars = clean_term_cars.dropna()
     clean_term_cars = clean_term_cars.drop_duplicates(subset=['ID_Auto'], keep='first')
-    #clean_term_cars = clean_term_cars.drop(columns=['ID_Auto'])
     return clean_term_cars
 
 def standardize_X(X):
@@ -35,16 +44,52 @@ def standardize_X(X):
     X_scaled = X[['Precio_z', 'Km_z', 'Year_z']].copy()
     return X_scaled, X
 
-@st.cache_data
-def load_and_train_model():
+def load_data():
+    dtypes = {
+        'ID_Auto': 'string',
+        'Precio': 'float32', 
+        'Tasa_Servicio': 'float32', 
+        'Plazo': 'Int16',         # Cambiado a Int16 por seguridad (hasta 32k meses)
+        'Mensualidad': 'Int32',   # Nullable Int, soporta NaNs
+        'Tasa': 'float32',        # Corregido: float8 no existe
+        'Seguro': 'float32', 
+        'Enganche_Simulado': 'float32', 
+        'Enganche_Min': 'float32', 
+        'Enganche_Max': 'float32', 
+        'Brand': 'category',
+        'Model': 'category', 
+        'Version': 'category', 
+        'Tipo': 'category', 
+        'Total_a_Pagar': 'float64', 
+        'Interes': 'float32', 
+        'Interes_%': 'float32',
+        'Enganche_Min_%': 'float32', 
+        'Enganche_Max_%': 'float32', 
+        'Sucursal': 'category',   
+        'Year': 'float32',
+        'Km': 'float32',          # float32 soporta NaN
+        'Caja': 'category',       # Optimizado: string -> category (Soporta NaN)
+        'Oferta': 'Int8'          # Corregido syntax. 'Int8' soporta NaN (<NA>)
+    }
+
+    cols_to_load = list(dtypes.keys())
+
     try:
-        df = pd.read_csv('data.csv', encoding='utf-8')
+        #Carga optimizada
+        df = pd.read_csv('data.csv', encoding='utf-8', usecols=lambda c: c in cols_to_load, dtype=dtypes)
+        return df
+        
     except FileNotFoundError:
         st.error("No se encontro el archivo CSV. Asegúrate de subir 'data.csv' a la misma carpeta.")
         st.stop()
 
+@st.cache_resource
+def load_and_train_model(term=12):
+
+    df = load_data()
+
     # Limpieza
-    clean_term_cars = get_term_data(df, term=12)
+    clean_term_cars = get_term_data(df, term)
     
     # Feature Engineering (Z-Scores)
     features = ['Precio', 'Km', 'Year', 'Interes_%']
@@ -70,12 +115,20 @@ def load_and_train_model():
     
     return df_results, cluster_names
 
-# Llamamos a la funcion
-df_results, cluster_names = load_and_train_model()
+
+terms = get_terms()
 
 # SIDEBAR
 st.sidebar.header("🔍 Explorador de Modelos")
+
+all_terms = sorted(terms)
+selected_term = st.sidebar.selectbox("Selecciona un Plazo", all_terms)
+
+# Llamamos a la funcion
+df_results, cluster_names = load_and_train_model(selected_term)
+
 all_brands = sorted(df_results['Brand'].unique())
+all_brands.insert(0, "Todas las marcas")
 selected_brand = st.sidebar.selectbox("Selecciona una Marca", all_brands)
 
 models_of_brand = sorted(df_results[df_results['Brand'] == selected_brand]['Model'].unique())
@@ -86,6 +139,7 @@ all_years = sorted(df_results[df_results['Model'] == selected_model]['Year'].uni
 all_years = [int(year) for year in all_years]
 all_years.insert(0, "Todos los años")
 selected_year = st.sidebar.selectbox("Selecciona un Año", all_years)
+
 
 # SECCION 1: INSIGHTS
 st.header("1. Segmentacion del Mercado")
@@ -119,17 +173,16 @@ with col2:
     fig_general.add_hline(y=350000, line_dash="dash", line_color="red", annotation_text="Techo Premium")
     st.plotly_chart(fig_general, width='stretch')
 
+
 # SECCION 2: ANALISIS POR MODELO 
 st.markdown("---")
 st.header(f"2. Analisis Profundo: {selected_model}")
 
 # Filtrado de datos
+brand_mask = (df_results['Brand'] == selected_brand) | (selected_brand == 'Todas las marcas')
 model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
 year_mask = (df_results['Year'] == selected_year) | (selected_year == 'Todos los años')
-model_data = df_results[model_mask & year_mask]
-
-def display_df_point_selected(points, df):
-    return
+model_data = df_results[brand_mask & model_mask & year_mask]
 
 if model_data.empty:
     st.warning("No hay suficientes datos para este modelo.")
@@ -140,7 +193,7 @@ else:
     m3.metric("Unidades Disponibles", len(model_data))
     m4.metric("Ciudades", model_data['Sucursal'].nunique())
 
-    segmentation_options = ['Version', 'Caja', 'Sucursal', 'Segment', 'Year']
+    segmentation_options = ['Version', 'Caja', 'Sucursal', 'Segment', 'Year', 'Model']
     filter_label = st.segmented_control("Filtrado por: ", segmentation_options, selection_mode='single')
 
     fig_model = px.scatter(
@@ -149,18 +202,21 @@ else:
         y='Km', 
         color=filter_label,
         #symbol='Tipo', # Forma del punto
-        hover_data=['ID_Auto', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
+        hover_data=['ID_Auto', 'Model', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
         title=f'Riesgo Financiero vs Desgaste: {selected_model}',
         height=600
     )
     fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
     event = st.plotly_chart(fig_model, width='stretch', selection_mode='points', key='ID_Auto', on_select='rerun')
+    
 
-    #Muestra en detalle de los autos seleccionados en la grafica
+    #Muestra en detalle los autos seleccionados en la grafica
     points = [point['customdata'][0] for point in event['selection']['points']]
     if points:
         df_selected_points = model_data[model_data['ID_Auto'].isin(points)]
         st.dataframe(df_selected_points)
+
+
 
 # SECCION 3: SIMULADOR
 st.markdown("---")
