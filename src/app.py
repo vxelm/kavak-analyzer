@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 import plotly.express as px
 
 
-@st.cache_data
+@st.cache_resource
 def get_terms():
     try:
         df = pd.read_csv('data.csv', encoding='utf-8', usecols=['Plazo'], dtype='Int16')
@@ -241,6 +241,7 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
             df_selected_points = model_data[model_data['ID_Auto'].isin(points)]
             st.dataframe(df_selected_points)
 
+    del model_data
     return model_data_simulator
 
 
@@ -289,7 +290,7 @@ def main():
     gc.collect()
 
     st.set_page_config(page_title="Kavak Market Analyzer", layout="wide")
-    pd.options.display.float_format = '{:,.0f}'.format
+    #pd.options.display.float_format = '{:,.0f}'.format
 
     st.title("Valuador de Mercado de Autos Seminuevos")
     st.markdown("""
