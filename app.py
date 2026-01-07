@@ -208,27 +208,28 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
         m3.metric("Unidades Disponibles", len(model_data))
         m4.metric("Ciudades", model_data['Sucursal'].nunique())
 
-        col3, col4, col5 = st.columns(3, gap='small', vertical_alignment='top', width='stretch')
-        
-        with col3:
-            x_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
-            y_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
-            x_axis = st.segmented_control("Eje X: ", x_axis_labels, selection_mode='single')
-            if x_axis:
-                y_axis_labels.remove(x_axis)
-        
-        with col4:
-            y_axis = st.segmented_control("Eje y: ", y_axis_labels, selection_mode='single')
-        
-        with col5:
-            segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
-            if selected_brand != 'Todas las marcas':
-                segmentation_options.extend(['Model'])
-                if selected_model != 'Todos los modelos':
-                    segmentation_options.extend(['Version'])
+        with st.expander("Configurar Ejes y Filtros de la Grafica", expanded=False):
 
-            filter_label = st.segmented_control("Filtrado por: ", segmentation_options, default='Segment', selection_mode='single')
+            col3, col4, col5 = st.columns(3, gap='small', vertical_alignment='top', width='stretch')
+            
+            with col3:
+                x_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
+                y_axis_labels = ['Precio', 'Km', 'Interes_%', 'Total_a_Pagar']
+                x_axis = st.segmented_control("Eje X: ", x_axis_labels, selection_mode='single')
+                if x_axis:
+                    y_axis_labels.remove(x_axis)
+            
+            with col4:
+                y_axis = st.segmented_control("Eje y: ", y_axis_labels, selection_mode='single')
+            
+            with col5:
+                segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
+                if selected_brand != 'Todas las marcas':
+                    segmentation_options.extend(['Model'])
+                    if selected_model != 'Todos los modelos':
+                        segmentation_options.extend(['Version'])
 
+                filter_label = st.segmented_control("Filtrado por: ", segmentation_options, default='Segment', selection_mode='single')
 
         if x_axis and y_axis:
             event = axis_abstraction(selected_model, model_data, filter_label, x_axis, y_axis)
@@ -258,17 +259,17 @@ def display_simulator_section(selected_model, selected_data_opt, selected_brand,
         input_year = sc3.number_input("Año", value=2020, step=1)
 
         # Calculamos referencia
-        referencia = model_data_simulator[
+        modelos_de_referencia = model_data_simulator[
             (model_data_simulator['Km'] > input_km - 10000) & 
             (model_data_simulator['Km'] < input_km + 10000) &
             (model_data_simulator['Year'] == input_year)
             ]
 
         if st.button("Evaluar Precio"):
-            if referencia.empty:
+            if modelos_de_referencia.empty:
                 st.warning(f"No tenemos suficientes datos de {selected_model} del año {input_year} para comparar.")
             else:
-                avg_market = referencia['Precio'].mean()
+                avg_market = modelos_de_referencia['Precio'].mean()
                 diff = input_price - avg_market
                 
                 st.write(f"Precio Justo de Mercado (aprox): **${avg_market:,.0f}**")
