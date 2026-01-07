@@ -168,6 +168,15 @@ def display_insights_section(df_results):
             color_discrete_map={'Alto Kilometraje': '#ef553b', 'Standard': '#636efa', 'Premium': '#00cc96'},
             opacity=0.5
         )
+        fig_general.update_layout(legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.0,
+                xanchor='right',
+                x=1
+            ),
+            margin=dict(l=20, r=28, t=50, b=20)
+        )
         fig_general.add_vline(x=70000, line_dash="dash", line_color="red", annotation_text="Barrera 70k km")
         fig_general.add_hline(y=350000, line_dash="dash", line_color="red", annotation_text="Techo Premium")
         st.plotly_chart(fig_general, width='stretch')
@@ -182,6 +191,18 @@ def axis_abstraction(selected_model, model_data, filter_label, x_axis='Interes_%
         hover_data=['ID_Auto', 'Modelo', 'Precio', 'Año', 'Ciudad', 'Total_a_Pagar'],
         title=f'{y_axis} vs {x_axis}: {selected_model}',
         height=600
+    )
+    fig_model.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.0,
+            xanchor='right',
+            x=1
+        ),
+        margin=dict(
+            l=20, r=28, t=50, b=20
+        )
     )
     fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
     event = st.plotly_chart(fig_model, width='stretch', selection_mode='points', key='ID_Auto', on_select='rerun')
@@ -236,11 +257,24 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
         else:
             event = axis_abstraction(selected_model, model_data, filter_label)
 
+        format_mapping_detail_car = {
+            'Precio': '${:,.0f}',
+            'Km': '{:,.0f} km',
+            'Año': '{:.0f}',
+            'Interes_%': '{:.0f}%',
+            'Total_a_Pagar': '${:,.0f}'
+        }
+
         #Muestra en detalle los autos seleccionados en la grafica
         points = [point['customdata'][0] for point in event['selection']['points']]
         if points:
+            info_cols = ['ID_Auto', 'Segment', 'Marca', 
+                         'Modelo', 'Año', 'Version', 'Tipo', 
+                         'Caja', 'Ciudad', 'Km', 'Precio', 'Interes_%', 'Total_a_Pagar']
             df_selected_points = model_data[model_data['ID_Auto'].isin(points)]
-            st.dataframe(df_selected_points)
+            df_selected_points = df_selected_points[info_cols]
+            df_selected_points = df_selected_points.set_index('ID_Auto')
+            st.dataframe(df_selected_points.style.format(format_mapping_detail_car))
 
     del model_data
     return model_data_simulator
