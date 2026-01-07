@@ -16,16 +16,16 @@ def get_terms():
         st.stop()
 
 def get_term_data(df, term, aliado_flag=False):
-    cols = ['ID_Auto', 'Brand', 'Model', 'Precio', 'Km', 'Year', 'Interes_%',
-         'Version', 'Caja', 'Tipo', 'Total_a_Pagar', 'Plazo', 'Sucursal']
+    cols = ['ID_Auto', 'Marca', 'Modelo', 'Precio', 'Km', 'Año', 'Interes_%',
+         'Version', 'Caja', 'Tipo', 'Total_a_Pagar', 'Plazo', 'Ciudad']
 
     if aliado_flag:
         filtering_conditions = (df['Plazo'] == term)
     else:
-        filtering_conditions = (df['Sucursal'] != 'Aliado') & (df['Plazo'] == term)
+        filtering_conditions = (df['Ciudad'] != 'Aliado') & (df['Plazo'] == term)
 
     clean_term_cars = df.loc[filtering_conditions, cols].copy()    
-    clean_term_cars = clean_term_cars.sort_values(by=['Year', 'Km', 'Precio'], na_position='last')
+    clean_term_cars = clean_term_cars.sort_values(by=['Año', 'Km', 'Precio'], na_position='last')
     clean_term_cars = clean_term_cars.dropna()
     clean_term_cars = clean_term_cars.drop_duplicates(subset=['ID_Auto'], keep='first')
     return clean_term_cars
@@ -35,9 +35,9 @@ def standardize_X(X):
     X_std = X.std()    
     X['Precio_z'] = (X['Precio'] - X_mean['Precio']) / X_std['Precio']
     X['Km_z']     = (X['Km'] - X_mean['Km']) / X_std['Km']
-    X['Year_z']   = (X['Year'] - X_mean['Year']) / X_std['Year']
-    X['Interes_%_z']   = (X['Year'] - X_mean['Year']) / X_std['Year'] # NO ENTRARA AL MODELO
-    X_scaled = X[['Precio_z', 'Km_z', 'Year_z']].copy()
+    X['Año_z']   = (X['Año'] - X_mean['Año']) / X_std['Año']
+    X['Interes_%_z']   = (X['Año'] - X_mean['Año']) / X_std['Año'] # NO ENTRARA AL MODELO
+    X_scaled = X[['Precio_z', 'Km_z', 'Año_z']].copy()
     return X_scaled, X
 
 def load_data():
@@ -45,15 +45,15 @@ def load_data():
         'ID_Auto': 'string',
         'Precio': 'float32', 
         'Tasa_Servicio': 'float32', 
-        'Plazo': 'Int16',         # Cambiado a Int16 por seguridad (hasta 32k meses)
-        'Mensualidad': 'Int32',   # Nullable Int, soporta NaNs
-        'Tasa': 'float32',        # Corregido: float8 no existe
+        'Plazo': 'Int16',         
+        'Mensualidad': 'Int32',   
+        'Tasa': 'float32',       
         'Seguro': 'float32', 
         'Enganche_Simulado': 'float32', 
         'Enganche_Min': 'float32', 
         'Enganche_Max': 'float32', 
-        'Brand': 'category',
-        'Model': 'category', 
+        'Marca': 'category',
+        'Modelo': 'category', 
         'Version': 'category', 
         'Tipo': 'category', 
         'Total_a_Pagar': 'float64', 
@@ -61,11 +61,11 @@ def load_data():
         'Interes_%': 'float32',
         'Enganche_Min_%': 'float32', 
         'Enganche_Max_%': 'float32', 
-        'Sucursal': 'category',   
-        'Year': 'float32',
-        'Km': 'float32',          # float32 soporta NaN
-        'Caja': 'category',       # Optimizado: string -> category (Soporta NaN)
-        'Oferta': 'Int8'          # Corregido syntax. 'Int8' soporta NaN (<NA>)
+        'Ciudad': 'category',   
+        'Año': 'float32',
+        'Km': 'float32',          
+        'Caja': 'category',       
+        'Oferta': 'Int8'          
     }
 
     cols_to_load = list(dtypes.keys())
@@ -88,7 +88,7 @@ def load_and_train_model(term=12, aliado_flag=False):
     clean_term_cars = get_term_data(df, term, aliado_flag=aliado_flag)
     
     # Feature Engineering (Z-Scores)
-    features = ['Precio', 'Km', 'Year', 'Interes_%']
+    features = ['Precio', 'Km', 'Año', 'Interes_%']
     X = clean_term_cars[features].copy()
     X_scaled, X = standardize_X(X)
     
@@ -124,15 +124,15 @@ def display_sidebar(terms):
     else:
         df_results = load_and_train_model(selected_term, selected_data_opt)
 
-    all_brands = sorted(df_results['Brand'].unique())
+    all_brands = sorted(df_results['Marca'].unique())
     all_brands.insert(0, "Todas las marcas")
     selected_brand = st.sidebar.selectbox("Selecciona una Marca", all_brands)
 
-    models_of_brand = sorted(df_results[df_results['Brand'] == selected_brand]['Model'].unique())
+    models_of_brand = sorted(df_results[df_results['Marca'] == selected_brand]['Modelo'].unique())
     models_of_brand.insert(0, "Todos los modelos")
     selected_model = st.sidebar.selectbox("Selecciona un Modelo", models_of_brand)
 
-    all_years = sorted(df_results[df_results['Model'] == selected_model]['Year'].unique())
+    all_years = sorted(df_results[df_results['Modelo'] == selected_model]['Año'].unique())
     all_years = [int(year) for year in all_years]
     all_years.insert(0, "Todos los años")
     selected_year = st.sidebar.selectbox("Selecciona un Año", all_years)
@@ -147,13 +147,13 @@ def display_insights_section(df_results):
     format_mapping = {
         'Precio': '${:,.0f}',
         'Km': '{:,.0f} km',
-        'Year': '{:.0f}',
+        'Año': '{:.0f}',
         'Interes_%': '{:.0f}%'
     }
 
     with col1:
         st.write("Perfiles promedio detectados por el algoritmo:")
-        profiles = df_results[['Precio', 'Km', 'Year', 'Interes_%', 'Segment']].groupby('Segment').mean().sort_values('Precio')
+        profiles = df_results[['Precio', 'Km', 'Año', 'Interes_%', 'Segment']].groupby('Segment').mean().sort_values('Precio')
         st.dataframe(profiles.style.format(format_mapping))
         
         st.info("""
@@ -179,8 +179,8 @@ def axis_abstraction(selected_model, model_data, filter_label, x_axis='Interes_%
         y=y_axis, 
         color=filter_label,
         #symbol='Tipo', # Forma del punto
-        hover_data=['ID_Auto', 'Model', 'Precio', 'Year', 'Sucursal', 'Total_a_Pagar'],
-        title=f'{x_axis} vs {y_axis}: {selected_model}',
+        hover_data=['ID_Auto', 'Modelo', 'Precio', 'Año', 'Ciudad', 'Total_a_Pagar'],
+        title=f'{y_axis} vs {x_axis}: {selected_model}',
         height=600
     )
     fig_model.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
@@ -193,9 +193,9 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
     st.header(f"2. Analisis Profundo: {selected_model}")
 
     # Filtrado de datos
-    brand_mask = (df_results['Brand'] == selected_brand) | (selected_brand == 'Todas las marcas')
-    model_mask = (df_results['Model'] == selected_model) | (selected_model == 'Todos los modelos')
-    year_mask = (df_results['Year'] == selected_year) | (selected_year == 'Todos los años')
+    brand_mask = (df_results['Marca'] == selected_brand) | (selected_brand == 'Todas las marcas')
+    model_mask = (df_results['Modelo'] == selected_model) | (selected_model == 'Todos los modelos')
+    year_mask = (df_results['Año'] == selected_year) | (selected_year == 'Todos los años')
     model_data_simulator = df_results[brand_mask & model_mask]
     model_data = df_results[brand_mask & model_mask & year_mask]
 
@@ -206,7 +206,7 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
         m1.metric("Precio Promedio", f"${model_data['Precio'].mean():,.0f}")
         m2.metric("Kilometraje Promedio", f"{model_data['Km'].mean():,.0f} km")
         m3.metric("Unidades Disponibles", len(model_data))
-        m4.metric("Ciudades", model_data['Sucursal'].nunique())
+        m4.metric("Ciudades", model_data['Ciudad'].nunique())
 
         with st.expander("Configurar Ejes y Filtros de la Grafica", expanded=False):
 
@@ -223,9 +223,9 @@ def display_analysis_model_section(df_results, selected_brand, selected_model, s
                 y_axis = st.segmented_control("Eje y: ", y_axis_labels, selection_mode='single')
             
             with col5:
-                segmentation_options = ['Caja', 'Sucursal', 'Segment', 'Year']
+                segmentation_options = ['Caja', 'Ciudad', 'Segment', 'Año']
                 if selected_brand != 'Todas las marcas':
-                    segmentation_options.extend(['Model'])
+                    segmentation_options.extend(['Modelo'])
                     if selected_model != 'Todos los modelos':
                         segmentation_options.extend(['Version'])
 
@@ -262,7 +262,7 @@ def display_simulator_section(selected_model, selected_data_opt, selected_brand,
         modelos_de_referencia = model_data_simulator[
             (model_data_simulator['Km'] > input_km - 10000) & 
             (model_data_simulator['Km'] < input_km + 10000) &
-            (model_data_simulator['Year'] == input_year)
+            (model_data_simulator['Año'] == input_year)
             ]
 
         if st.button("Evaluar Precio"):
