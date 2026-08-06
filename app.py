@@ -166,7 +166,8 @@ def display_insights_section(df_results):
             df_results, x='Km', y='Precio', color='Segment',
             title="Mapa General del Mercado (Todos los Autos)",
             color_discrete_map={'Alto Kilometraje': '#ef553b', 'Standard': '#636efa', 'Premium': '#00cc96'},
-            opacity=0.5
+            opacity=0.5,
+            render_mode='svg'  # evita scattergl/WebGL, que falla si el navegador agota contextos
         )
         fig_general.update_layout(legend=dict(
                 orientation="h",
@@ -190,7 +191,8 @@ def axis_abstraction(selected_model, model_data, filter_label, x_axis='Interes_%
         #symbol='Tipo', # Forma del punto
         hover_data=['ID_Auto', 'Modelo', 'Precio', 'Año', 'Ciudad', 'Total_a_Pagar'],
         title=f'{y_axis} vs {x_axis}: {selected_model}',
-        height=600
+        height=600,
+        render_mode='svg'  # evita scattergl/WebGL, que falla si el navegador agota contextos
     )
     fig_model.update_layout(
         legend=dict(
